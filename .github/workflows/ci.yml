@@ -1,4 +1,4 @@
-name: CI
+name: CI / CD
 
 on: [push, pull_request]
 
@@ -18,32 +18,32 @@ jobs:
           pip install -r requirements.txt
           pip install flake8
 
-      # 1. Contrôle de code (Linter) : s'arrête en cas d'erreur de syntaxe ou de style
       - name: Code Quality Check (Flake8)
         run: |
-          # Arrête le pipeline si des erreurs de syntaxe Python ou de variables non définies existent
           flake8 app/ tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Avertissements de style (pep8)
           flake8 app/ tests/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-      # 2. Exécution des tests unitaires
       - name: Run tests
         run: python -m pytest -v
 
-  docker-build:
-    needs: lint-and-test # S'exécute uniquement si le contrôle de code et les tests réussissent
+  docker-build-and-push:
+    needs: lint-and-test
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' # Push uniquement sur la branche main
     steps:
       - uses: actions/checkout@v4
 
-      # 3. Build et vérification de l'image Docker en cas d'erreur de construction
-      - name: Build Docker Image
-        run: |
-          docker build -t devops-tp1:${{ github.sha }} .
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 4. Vérification optionnelle de l'exécution du conteneur
-      - name: Test Docker Container
-        run: |
-          docker run -d -p 5001:5001 --name test-container devops-tp1:${{ github.sha }}
-          sleep 3
-          curl --fail http://localhost:5001/ || exit 1
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            vv2se3/devops-tp1:latest
+            vv2se3/devops-tp1:${{ github.sha }}
